@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+import hou
+import re
+
+import tractor.api.author as author
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing import Iterable
+
+
+HOSTNAME="tractor-engine.cs.byu.edu"
+
+
+def set_up_command_logs(command_list: list[str]) -> hou.logging.MemorySink:
+    log_sink_filter_re = re.compile("(?:\/\w+)+ command: (husk .*)")
+    def log_sink_filter(log: hou.logging.LogEntry) -> bool:
+        command_list.append(log_sink_filter_re.match(log.message()).group(1))
+        return False
+    
+    sink = hou.logging.defaultSink(True)
+    sink.connect("Standard Output")
+    sink.setFilterCallback(log_sink_filter)
+
+
+def ensure_valid_inputs(inputs: Iterable[hou.Node]):
+    for input in inputs:
+        # if input is not a tractor_configure node, cancel
+        if not input.type().name().startswith("tlops::tractor_configure"):
+            hou.ui.displayMessage(
+                "Please ensure that all inputs to the Tractor Submit node are Tractor Configure nodes. "
+                f'Error on input node "{input.name()}"',
+                title="Error sending to Tractor",
+                severity=hou.severityType.Error
+            )
+            return
+
+
+def configure_tractor_connection() -> None:
+    author.setEngineClientParam(hostname=HOSTNAME, port=443)
+
+
+def sendToTractor(node: hou.Node) -> None:
+    ensure_valid_inputs(node.inputs())
+    command_list: list[str] = []
+    set_up_command_logs(command_list)
+
+    configure_tractor_connection()
+    job = author.Job()
+    job.title = node.parm("title").evalAsString()
+    job.envkey = ["hello"]
+    job.service = "bob"
+
+    for input in node.inputs():
+        # rop all inputs
+        input.node("usdrender_rop").parm("execute").pressButton()
+        while True:
+            try:
+                rop_cmd = command_list.pop()
+            except IndexError:
+                pass
+            finally:
+                break
+
+        task = author.Task(
+            title=input.name(),
+        )
+
+        task.addCommand(author.Command(argv=rop_cmd.split(" ")))
+
+        job.addChild(task)
+
+    
+    # configure blades and such
+    job.spool(block=True)
+
+    author.closeEngineClient()
+    hou.ui.displayConfirmation(f"Visit {HOSTNAME} to check progress.", title="Job sent to Tractor")
