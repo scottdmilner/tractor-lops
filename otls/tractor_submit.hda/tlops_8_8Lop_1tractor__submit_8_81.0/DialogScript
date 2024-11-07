@@ -110,6 +110,14 @@
     inputlabel	99	"Input #99"
 
     parm {
+        name    "send"
+        label   "Send To Tractor"
+        type    button
+        default { "0" }
+        parmtag { "script_callback" "hou.phm().sendToTractor(kwargs['node'])" }
+        parmtag { "script_callback_language" "python" }
+    }
+    parm {
         name    "title"
         label   "Job Title"
         type    string
@@ -117,11 +125,18 @@
         parmtag { "script_callback_language" "python" }
     }
     parm {
-        name    "send"
-        label   "Send To Tractor"
-        type    button
-        default { "0" }
-        parmtag { "script_callback" "hou.phm().sendToTractor(kwargs['node'])" }
+        name    "priority"
+        label   "Priority"
+        type    integer
+        default { "10" }
+        range   { 0! 50! }
+        parmtag { "script_callback_language" "python" }
+    }
+    parm {
+        name    "service"
+        label   "Default Service Key"
+        type    string
+        default { "Nintendo||Monster||Animation_Lab||Render_Farm" }
         parmtag { "script_callback_language" "python" }
     }
 }

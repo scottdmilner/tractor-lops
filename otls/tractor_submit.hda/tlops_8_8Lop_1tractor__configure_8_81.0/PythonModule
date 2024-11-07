@@ -1,0 +1,81 @@
+from __future__ import annotations
+
+# import argparse
+import hou
+import re
+
+import tractor.api.author as author
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass
+
+
+def set_up_logs(output_list: list[str], regex: str) -> None:
+    """Filter logs from stdout with the regex and save the message to output_list"""
+    log_sink_filter_re = re.compile(regex)
+
+    def log_sink_filter(log: hou.logging.LogEntry) -> bool:
+        output_list.append(log_sink_filter_re.match(log.message()).group(1))
+        return False
+
+    sink = hou.logging.defaultSink(True)
+    sink.connect("Standard Output")
+    sink.setFilterCallback(log_sink_filter)
+
+
+def get_frame_count(node: hou.LopNode) -> int:
+    trange = node.parm("trange").evalAsString()
+
+    if trange == "off":
+        return 1
+    elif trange == "normal" or trange == "on":
+        start = node.parm("f1").evalAsFloat()
+        end = node.parm("f2").evalAsFloat()
+        inc = node.parm("f3").evalAsFloat()
+    elif trange == "stage":
+        stage = node.stage()
+        start = stage.GetStartTimeCode() - node.parm("foffset1").evalAsFloat()
+        end = stage.GetEndTimeCode() + node.parm("foffset2").evalAsFloat()
+        inc = node.parm("foffset3").evalAsFloat()
+
+    if (start == 0.0) and (end == 0.0):
+        return 0
+
+    return (end + 1 - start) // inc
+
+
+def generate_tractor_task(node: hou.LopNode) -> author.Task:
+    command_list: list[str] = []
+    set_up_logs(command_list, "(?:\/\w+)+ command: (husk .*)")
+
+    task = author.Task(title=node.name())
+
+    node.node("usdrender_rop").parm("execute").pressButton()
+
+    # parser = argparse.ArgumentParser("husk")
+    # parser.add_argument("-f", "--frame", default=1)
+    # parser.add_argument("-n", "--frame-count", default=1)
+    # parser.add_argument("-i", "--frame-inc", default=1)
+    # parsed_args, others = parser.parse_known_intermixed_args(args)
+    # hou.ui.displayMessage(str(args))
+
+    if frame_count := get_frame_count(node):
+        while True:
+            # wait for command_list to populate
+            if len(command_list) >= frame_count:
+                break
+
+    frame_re = re.compile(".*-f (\d+).*")
+    for cmd in command_list:
+        fnum = frame_re.match(cmd).group(1)
+        subtask = author.Task(title=f"Frame {fnum}")
+        subtask.addCommand(
+            author.Command(
+                argv=["/bin/bash", "-exc", f"hserver -S animlic.cs.byu.edu && {cmd}"]
+            )
+        )
+        task.addChild(subtask)
+
+    return task
