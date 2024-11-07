@@ -58,13 +58,16 @@ def sendToTractor(node: hou.LopNode) -> None:
             + [
                 f"{var}={os.getenv(var)}"
                 for var in (
-                    "PATH",
+                    "HOUDINI_PATH",
                     "OCIO",
-                    "PXR_PLUGINPATH_NAME",
-                    "RMAN_COLOR_CONFIG_DIR",
-                    "PXR_AR_DEFAULT_SEARCH_PATH",
-                    "RMANTREE",
+                    "PATH",
                     "PIXAR_LICENSE_FILE",
+                    "PXR_AR_DEFAULT_SEARCH_PATH",
+                    "PXR_PLUGINPATH_NAME",
+                    "RFHTREE",
+                    "RMAN_COLOR_CONFIG_DIR",
+                    "RMAN_PROCEDURALPATH",
+                    "RMANTREE",
                 )
             ]
         )
