@@ -11,7 +11,7 @@ Outputs:      0
 Subnet:       true
 Python:       false
 Empty:        false
-Modified:     Wed Nov  6 20:50:53 2024
+Modified:     Thu Nov  7 21:19:52 2024
 
 Operator:     tlops::tractor_configure::1.0
 Label:        Tractor Configure
@@ -26,4 +26,19 @@ Subnet:       true
 Python:       false
 Empty:        false
 Modified:     Wed Nov  6 19:24:53 2024
+
+Operator:     tlops::shared_python
+Label:        TLOPs Shared Python
+Path:         oplib:/tlops::Lop/shared_python?tlops::Lop/shared_python
+Icon:         TOP_tractorscheduler
+Table:        Lop
+License:      
+Extra:        visibleoutputs=0 
+User:         
+Inputs:       0 to 0
+Outputs:      0
+Subnet:       true
+Python:       false
+Empty:        false
+Modified:     Thu Nov  7 21:40:23 2024
 

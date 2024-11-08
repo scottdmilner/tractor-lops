@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+import hou
+
+
+def _create_string_prop(parm: hou.Parm):
+    return property(lambda s: parm.evalAsString())
+
+
+def _create_int_prop(parm: hou.Parm):
+    return property(lambda s: parm.evalAsInt())
+
+
+def _create_float_prop(parm: hou.Parm):
+    return property(lambda s: parm.evalAsFloat())
+
+
+class ParmData:
+    def __init__(self, node: hou.LopNode):
+        for attr, typ in self.__annotations__.items():
+            if typ == "str":
+                setattr(self.__class__, attr, _create_string_prop(node.parm(attr)))
+            elif typ == "int":
+                setattr(self.__class__, attr, _create_int_prop(node.parm(attr)))
+            elif typ == "float":
+                setattr(self.__class__, attr, _create_float_prop(node.parm(attr)))

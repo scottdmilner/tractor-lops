@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hou
 import os
-import re
 
 import tractor.api.author as author
 
@@ -11,23 +10,21 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Iterable
 
-
-HOSTNAME = "tractor-engine.cs.byu.edu"
-
-
-def set_up_command_logs(command_list: list[str]) -> hou.logging.MemorySink:
-    log_sink_filter_re = re.compile("(?:\/\w+)+ command: (husk .*)")
-
-    def log_sink_filter(log: hou.logging.LogEntry) -> bool:
-        command_list.append(log_sink_filter_re.match(log.message()).group(1))
-        return False
-
-    sink = hou.logging.defaultSink(True)
-    sink.connect("Standard Output")
-    sink.setFilterCallback(log_sink_filter)
+_shared_module = hou.nodeType(
+    hou.lopNodeTypeCategory(), "tlops::shared_python"
+).hdaModule()
+ParmData = _shared_module.ParmData
 
 
-def ensure_valid_inputs(inputs: Iterable[hou.LopNode]):
+class SubmitParms(ParmData):
+    title: str
+    priority: int
+    service: str
+    engine_url: str
+    engine_port: int
+
+
+def ensure_valid_inputs(inputs: Iterable[hou.LopNode]) -> bool:
     for input in inputs:
         # if input is not a tractor_configure node, cancel
         if not input.type().name().startswith("tlops::tractor_configure"):
@@ -37,43 +34,47 @@ def ensure_valid_inputs(inputs: Iterable[hou.LopNode]):
                 title="Error sending to Tractor",
                 severity=hou.severityType.Error,
             )
-            return
+            return False
+    return True
 
 
-def configure_tractor_connection() -> None:
-    author.setEngineClientParam(hostname=HOSTNAME, port=443)
+def configure_tractor_connection(node: SubmitParms) -> None:
+    author.setEngineClientParam(hostname=node.engine_url, port=node.engine_port)
+
+
+def generate_envkey() -> str:
+    return " ".join(
+        ["setenv"]
+        + [
+            f"{var}={os.getenv(var)}"
+            for var in (
+                "HOUDINI_PATH",
+                "OCIO",
+                "PATH",
+                "PIXAR_LICENSE_FILE",
+                "PXR_AR_DEFAULT_SEARCH_PATH",
+                "PXR_PLUGINPATH_NAME",
+                "RFHTREE",
+                "RMAN_COLOR_CONFIG_DIR",
+                "RMAN_PROCEDURALPATH",
+                "RMANTREE",
+            )
+        ]
+        + ["HOUDINI_LICENSE_SERVER=animlic.cs.byu.edu"]
+    )
 
 
 def sendToTractor(node: hou.LopNode) -> None:
-    ensure_valid_inputs(node.inputs())
-    command_list: list[str] = []
-    set_up_command_logs(command_list)
+    if not ensure_valid_inputs(node.inputs()):
+        return
 
-    configure_tractor_connection()
+    parms = SubmitParms(node)
+    configure_tractor_connection(parms)
     job = author.Job()
-    job.title = node.parm("title").evalAsString()
-    job.envkey = [
-        " ".join(
-            ["setenv"]
-            + [
-                f"{var}={os.getenv(var)}"
-                for var in (
-                    "HOUDINI_PATH",
-                    "OCIO",
-                    "PATH",
-                    "PIXAR_LICENSE_FILE",
-                    "PXR_AR_DEFAULT_SEARCH_PATH",
-                    "PXR_PLUGINPATH_NAME",
-                    "RFHTREE",
-                    "RMAN_COLOR_CONFIG_DIR",
-                    "RMAN_PROCEDURALPATH",
-                    "RMANTREE",
-                )
-            ]
-        )
-    ]
-    job.service = node.parm("service").evalAsString()
-    job.priority = node.parm("priority").evalAsInt()
+    job.title = parms.title
+    job.envkey = [generate_envkey()]
+    job.service = parms.service
+    job.priority = parms.priority
 
     for input in node.inputs():
         task: author.Task = input.hdaModule().generate_tractor_task(input)
@@ -84,5 +85,5 @@ def sendToTractor(node: hou.LopNode) -> None:
 
     author.closeEngineClient()
     hou.ui.displayConfirmation(
-        f"Visit {HOSTNAME} to check progress.", title="Job sent to Tractor"
+        f"Visit {parms.engine_url} to check progress.", title="Job sent to Tractor"
     )

@@ -12,6 +12,22 @@ if TYPE_CHECKING:
     pass
 
 
+_shared_module = hou.nodeType(
+    hou.lopNodeTypeCategory(), "tlops::shared_python"
+).hdaModule()
+ParmData = _shared_module.ParmData
+
+
+class ConfigParms(ParmData):
+    trange: str
+    f1: float
+    f2: float
+    f3: float
+    foffset1: float
+    foffset2: float
+    foffset3: float
+
+
 def set_up_logs(output_list: list[str], regex: str) -> None:
     """Filter logs from stdout with the regex and save the message to output_list"""
     log_sink_filter_re = re.compile(regex)
@@ -25,20 +41,20 @@ def set_up_logs(output_list: list[str], regex: str) -> None:
     sink.setFilterCallback(log_sink_filter)
 
 
-def get_frame_count(node: hou.LopNode) -> int:
-    trange = node.parm("trange").evalAsString()
+def get_frame_count(parms: ConfigParms, node: hou.LopNode) -> int:
+    trange = parms.trange
 
     if trange == "off":
         return 1
     elif trange == "normal" or trange == "on":
-        start = node.parm("f1").evalAsFloat()
-        end = node.parm("f2").evalAsFloat()
-        inc = node.parm("f3").evalAsFloat()
+        start = parms.f1
+        end = parms.f2
+        inc = parms.f3
     elif trange == "stage":
         stage = node.stage()
-        start = stage.GetStartTimeCode() - node.parm("foffset1").evalAsFloat()
-        end = stage.GetEndTimeCode() + node.parm("foffset2").evalAsFloat()
-        inc = node.parm("foffset3").evalAsFloat()
+        start = stage.GetStartTimeCode() - parms.foffset1
+        end = stage.GetEndTimeCode() + parms.foffset2
+        inc = parms.foffset3
 
     if (start == 0.0) and (end == 0.0):
         return 0
@@ -61,7 +77,9 @@ def generate_tractor_task(node: hou.LopNode) -> author.Task:
     # parsed_args, others = parser.parse_known_intermixed_args(args)
     # hou.ui.displayMessage(str(args))
 
-    if frame_count := get_frame_count(node):
+    parms = ConfigParms(node)
+
+    if frame_count := get_frame_count(parms, node):
         while True:
             # wait for command_list to populate
             if len(command_list) >= frame_count:
@@ -73,7 +91,19 @@ def generate_tractor_task(node: hou.LopNode) -> author.Task:
         subtask = author.Task(title=f"Frame {fnum}")
         subtask.addCommand(
             author.Command(
-                argv=["/bin/bash", "-exc", f"hserver -S animlic.cs.byu.edu && {cmd}"]
+                argv=[
+                    "/bin/bash",
+                    "-exc",
+                    f'trap "hserver -S $HOUDINI_LICENSE_SERVER" SIGQUIT && {cmd}',
+                ],
+                retryrc=[
+                    -11,  # Segmentation fault
+                    -9,  # Unknown
+                    3,  # Can't get license
+                    135,  # Bus error
+                    139,  # Segmentation fault
+                ],
+                maxrunsecs=3 * 60 * 60,
             )
         )
         task.addChild(subtask)
