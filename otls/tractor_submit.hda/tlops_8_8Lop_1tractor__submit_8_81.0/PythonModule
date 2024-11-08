@@ -84,6 +84,6 @@ def sendToTractor(node: hou.LopNode) -> None:
     job.spool(block=True)
 
     author.closeEngineClient()
-    hou.ui.displayConfirmation(
+    hou.ui.displayMessage(
         f"Visit {parms.engine_url} to check progress.", title="Job sent to Tractor"
     )
