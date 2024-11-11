@@ -16,7 +16,7 @@ _shared_module = hou.nodeType(
 ParmData = _shared_module.ParmData
 
 
-class SubmitParms(ParmData):
+class SubmitParms(metaclass=ParmData):
     title: str
     priority: int
     service: str
@@ -38,8 +38,8 @@ def ensure_valid_inputs(inputs: Iterable[hou.LopNode]) -> bool:
     return True
 
 
-def configure_tractor_connection(node: SubmitParms) -> None:
-    author.setEngineClientParam(hostname=node.engine_url, port=node.engine_port)
+def configure_tractor_connection(parms: SubmitParms) -> None:
+    author.setEngineClientParam(hostname=parms.engine_url, port=parms.engine_port)
 
 
 def generate_envkey() -> str:
@@ -77,7 +77,7 @@ def sendToTractor(node: hou.LopNode) -> None:
     job.priority = parms.priority
 
     for input in node.inputs():
-        task: author.Task = input.hdaModule().generate_tractor_task(input)
+        task: author.Task = input.hdaModule().generate_tractor_task(input, input)
         job.addChild(task)
 
     # configure blades and such

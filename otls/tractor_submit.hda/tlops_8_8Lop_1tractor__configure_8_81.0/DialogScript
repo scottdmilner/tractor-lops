@@ -110,6 +110,14 @@
     inputlabel	99	"Input #99"
 
     parm {
+        name    "rop_lop"
+        label   "ROP LOP"
+        type    string
+        invisible
+        default { "\"..\"" }
+        parmtag { "script_callback_language" "python" }
+    }
+    parm {
         name    "trange"
         label   "Valid Frame Range"
         type    ordinal
@@ -151,7 +159,7 @@
         type    string
         default { "BRAY_HdKarma" }
         menu {
-            [ "opmenu -l -a usdrender_rop renderer" ]
+            [ "opmenu -l -a usdrender_rop1 renderer" ]
         }
         parmtag { "autoscope" "0000000000000000" }
         parmtag { "script_callback_language" "python" }
@@ -288,7 +296,7 @@
         tabbreak
 
         parm {
-            name    "dosnapshot"
+            name    "toggle_snapshot"
             label   "Snapshot"
             type    toggle
             nolabel
@@ -298,17 +306,17 @@
             parmtag { "script_callback_language" "python" }
         }
         parm {
-            name    "snapshotinterval"
+            name    "snapshot"
             label   "Snapshot Interval"
             type    integer
             default { "300" }
-            disablewhen "{ dosnapshot == off }"
+            disablewhen "{ toggle_snapshot == off }"
             range   { 30 1000 }
             parmtag { "autoscope" "0000000000000000" }
             parmtag { "script_callback_language" "python" }
         }
         parm {
-            name    "husk_dotimelimit"
+            name    "toggle_husk_timelimit"
             label   "Time Limit"
             type    toggle
             nolabel
@@ -322,7 +330,7 @@
             label   "Time Limit"
             type    integer
             default { "300" }
-            disablewhen "{ husk_dotimelimit == off }"
+            disablewhen "{ toggle_husk_timelimit == off }"
             range   { 30 1000 }
             parmtag { "autoscope" "0000000000000000" }
             parmtag { "script_callback_language" "python" }
@@ -350,40 +358,6 @@
                     parmtag { "script_callback_language" "python" }
                 }
                 parm {
-                    name    "husk_dopopulationmask"
-                    label   "Population Mask"
-                    type    toggle
-                    nolabel
-                    joinnext
-                    default { "off" }
-                    parmtag { "autoscope" "0000000000000000" }
-                    parmtag { "script_callback_language" "python" }
-                }
-                parm {
-                    name    "husk_populationmask"
-                    label   "Population Mask"
-                    type    string
-                    default { "" }
-                    disablewhen "{ husk_dopopulationmask == off }"
-                    menutoggle {
-                        [ "opmenu -l -a usdrender_rop husk_populationmask" ]
-                    }
-                    parmtag { "autoscope" "0000000000000000" }
-                    parmtag { "script_action" "import loputils\nloputils.selectPrimsInParm(kwargs, True)" }
-                    parmtag { "script_action_help" "Select primitives in the Scene Viewer or Scene Graph Tree pane.\nCtrl-click to select using the primitive picker dialog.\nShift-click to select using the primitive pattern editor.\nAlt-click to toggle movement of the display flag." }
-                    parmtag { "script_action_icon" "BUTTONS_reselect" }
-                    parmtag { "sidefx::usdpathtype" "primlist" }
-                }
-                parm {
-                    name    "husk_rendersettingsandcams"
-                    label   "Include Render Settings and Cameras"
-                    type    toggle
-                    default { "on" }
-                    disablewhen "{ husk_dopopulationmask == off }"
-                    parmtag { "autoscope" "0000000000000000" }
-                    parmtag { "script_callback_language" "python" }
-                }
-                parm {
                     name    "husk_purpose"
                     label   "Purpose"
                     type    string
@@ -398,20 +372,6 @@
                     parmtag { "autoscope" "0000000000000000" }
                     parmtag { "script_callback_language" "python" }
                 }
-                parm {
-                    name    "husk_complexity"
-                    label   "Complexity"
-                    type    string
-                    default { "veryhigh" }
-                    menu {
-                        "low"       "Low"
-                        "medium"    "Medium"
-                        "high"      "High"
-                        "veryhigh"  "Very High"
-                    }
-                    parmtag { "autoscope" "0000000000000000" }
-                    parmtag { "script_callback_language" "python" }
-                }
             }
 
             group {
@@ -419,7 +379,7 @@
                 label   "Python"
 
                 parm {
-                    name    "husk_tprerender"
+                    name    "toggle_husk_prerender"
                     label   "Husk Pre-Render"
                     type    toggle
                     nolabel
@@ -440,7 +400,7 @@
                     parmtag { "filechooser_mode" "read" }
                 }
                 parm {
-                    name    "husk_tpreframe"
+                    name    "toggle_husk_preframe"
                     label   "Husk Pre-Frame"
                     type    toggle
                     nolabel
@@ -461,7 +421,7 @@
                     parmtag { "filechooser_mode" "read" }
                 }
                 parm {
-                    name    "husk_tpostframe"
+                    name    "toggle_husk_postframe"
                     label   "Husk Post-Frame"
                     type    toggle
                     nolabel
@@ -482,7 +442,7 @@
                     parmtag { "filechooser_mode" "read" }
                 }
                 parm {
-                    name    "husk_tpostrender"
+                    name    "toggle_husk_postrender"
                     label   "Husk Post-Render"
                     type    toggle
                     nolabel
@@ -524,16 +484,6 @@
                     default { "4" "4" }
                     disablewhen "{ husk_tile == off }"
                     range   { 1! 6 }
-                    parmtag { "autoscope" "0000000000000000" }
-                    parmtag { "script_callback_language" "python" }
-                }
-                parm {
-                    name    "husk_tileindex"
-                    label   "Index"
-                    type    integer
-                    default { "0" }
-                    disablewhen "{ husk_tile == off }"
-                    range   { 0! 25 }
                     parmtag { "autoscope" "0000000000000000" }
                     parmtag { "script_callback_language" "python" }
                 }
@@ -691,7 +641,7 @@
                 joinnext
                 default { "" }
                 menureplace {
-                    [ "opmenu -l -a usdrender_rop prerender" ]
+                    [ "opmenu -l -a usd_rop1 prerender" ]
                 }
                 parmtag { "autoscope" "0000000000000000" }
                 parmtag { "filechooser_mode" "read" }
@@ -726,7 +676,7 @@
                 joinnext
                 default { "" }
                 menureplace {
-                    [ "opmenu -l -a usdrender_rop preframe" ]
+                    [ "opmenu -l -a usd_rop1 preframe" ]
                 }
                 parmtag { "autoscope" "0000000000000000" }
                 parmtag { "filechooser_mode" "read" }
@@ -761,7 +711,7 @@
                 joinnext
                 default { "" }
                 menureplace {
-                    [ "opmenu -l -a usdrender_rop postframe" ]
+                    [ "opmenu -l -a usd_rop1 postframe" ]
                 }
                 parmtag { "autoscope" "0000000000000000" }
                 parmtag { "filechooser_mode" "read" }
@@ -796,7 +746,7 @@
                 joinnext
                 default { "" }
                 menureplace {
-                    [ "opmenu -l -a usdrender_rop postrender" ]
+                    [ "opmenu -l -a usd_rop1 postrender" ]
                 }
                 parmtag { "autoscope" "0000000000000000" }
                 parmtag { "filechooser_mode" "read" }

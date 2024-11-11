@@ -1,24 +1,26 @@
 from __future__ import annotations
 
-# import argparse
 import hou
-import re
 
 import tractor.api.author as author
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    pass
+    from typing import Any, TypeVar
+
+    T = TypeVar("T", bound=type)
 
 
 _shared_module = hou.nodeType(
     hou.lopNodeTypeCategory(), "tlops::shared_python"
 ).hdaModule()
 ParmData = _shared_module.ParmData
+parmfield = _shared_module.parmfield
 
 
-class ConfigParms(ParmData):
+class ConfigParms(metaclass=ParmData):
+    rop_lop: str = parmfield(writable=True)
     trange: str
     f1: float
     f2: float
@@ -26,75 +28,133 @@ class ConfigParms(ParmData):
     foffset1: float
     foffset2: float
     foffset3: float
+    savetodirectory_directory: str
+    renderer: str
+    husk_purpose: str
+    snapshot: int = parmfield(has_toggle=True)
+    husk_timelimit: int = parmfield(has_toggle=True)
+    verbosity: str
+    husk_usdtrace: str
+    husk_chromefile: str
+    override_camera: str = parmfield(has_toggle=True)
+    rendersettings: str = parmfield(has_toggle=True)
+    override_res: str
+    res_scale: int
+    res_user1: int
+    res_user2: int
+    husk_instantshutter: int
+    husk_prerender: str
+    husk_preframe: str
+    husk_postrender: str
+    husk_postframe: str
+    husk_tile: int
+    husk_tilecount1: int
+    husk_tilecount2: int
+    husk_tilesuffix: str
 
 
-def set_up_logs(output_list: list[str], regex: str) -> None:
-    """Filter logs from stdout with the regex and save the message to output_list"""
-    log_sink_filter_re = re.compile(regex)
-
-    def log_sink_filter(log: hou.logging.LogEntry) -> bool:
-        output_list.append(log_sink_filter_re.match(log.message()).group(1))
-        return False
-
-    sink = hou.logging.defaultSink(True)
-    sink.connect("Standard Output")
-    sink.setFilterCallback(log_sink_filter)
-
-
-def get_frame_count(parms: ConfigParms, node: hou.LopNode) -> int:
+def get_frame_range(parms: ConfigParms, node: hou.LopNode) -> tuple[int, int, int]:
     trange = parms.trange
 
     if trange == "off":
-        return 1
+        return int(hou.frame()), int(hou.frame()), 1
     elif trange == "normal" or trange == "on":
-        start = parms.f1
-        end = parms.f2
-        inc = parms.f3
+        start = int(parms.f1)
+        end = int(parms.f2)
+        inc = int(parms.f3)
     elif trange == "stage":
         stage = node.stage()
-        start = stage.GetStartTimeCode() - parms.foffset1
-        end = stage.GetEndTimeCode() + parms.foffset2
-        inc = parms.foffset3
+        start = int(stage.GetStartTimeCode() - parms.foffset1)
+        end = int(stage.GetEndTimeCode() + parms.foffset2)
+        inc = int(parms.foffset3)
 
-    if (start == 0.0) and (end == 0.0):
-        return 0
-
-    return (end + 1 - start) // inc
+    return start, end, inc
 
 
-def generate_tractor_task(node: hou.LopNode) -> author.Task:
-    command_list: list[str] = []
-    set_up_logs(command_list, "(?:\/\w+)+ command: (husk .*)")
+def generate_husk_command(parms: ConfigParms) -> str:
+    cmd = [
+        "husk",
+        "--make-output-path",
+        f"--output {parms.savetodirectory_directory}/images/{{fnum:04}}.exr",
+        "--frame {fnum}",
+        f"--renderer {parms.renderer}",
+        f"--purpose {parms.husk_purpose}",
+        f"--complexity veryhigh",
+        f"--verbose acet{parms.verbosity}",
+        parms.savetodirectory_directory + "/render.usd",
+    ]
 
-    task = author.Task(title=node.name())
+    p: Any
+    if p := parms.snapshot:
+        cmd.append(f"--snapshot {p}")
+    if p := parms.override_camera:
+        cmd.append(f"--camera {p}")
+    if p := parms.rendersettings:
+        cmd.append(f"--settings {p}")
+    if p := parms.override_res:
+        if p == "scale":
+            cmd.append(f"--res-scale {parms.res_scale}")
+        elif p == "specific":
+            cmd.append(f"--res {parms.res_user1} {parms.res_user2}")
+    if parms.husk_instantshutter:
+        cmd.append(f"--disable-motionblur")
+    if p := parms.husk_prerender:
+        cmd.append(f"--prerender-script {p}")
+    if p := parms.husk_preframe:
+        cmd.append(f"--prerender-script {p}")
+    if p := parms.husk_postrender:
+        cmd.append(f"--prerender-script {p}")
+    if p := parms.husk_postframe:
+        cmd.append(f"--prerender-script {p}")
+    if parms.husk_tile:
+        cmd.append(f"--tile-count {parms.husk_tilecount1} {parms.husk_tilecount2}")
+        cmd.append("--tile-index {tnum:03}")
+        cmd.append(f"--tile-suffix {parms.husk_tilesuffix}")
+    if p := parms.husk_usdtrace:
+        cmd.append(f"--usd-trace {p}")
+        if p := parms.husk_chromefile:
+            cmd.append(f"--usd-chrome-file {p}")
 
-    node.node("usdrender_rop").parm("execute").pressButton()
+    return " ".join(cmd)
 
-    # parser = argparse.ArgumentParser("husk")
-    # parser.add_argument("-f", "--frame", default=1)
-    # parser.add_argument("-n", "--frame-count", default=1)
-    # parser.add_argument("-i", "--frame-inc", default=1)
-    # parsed_args, others = parser.parse_known_intermixed_args(args)
-    # hou.ui.displayMessage(str(args))
+
+def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> author.Task:
+    node_name = node.name()
+    task = author.Task(title=node_name)
 
     parms = ConfigParms(node)
+    parms.rop_lop = submit_input.path()
 
-    if frame_count := get_frame_count(parms, node):
-        while True:
-            # wait for command_list to populate
-            if len(command_list) >= frame_count:
-                break
+    node.node("usd_rop").parm("execute").pressButton()  # type: ignore[union-attr]
 
-    frame_re = re.compile(".*-f (\d+).*")
-    for cmd in command_list:
-        fnum = frame_re.match(cmd).group(1)
-        subtask = author.Task(title=f"Frame {fnum}")
-        subtask.addCommand(
-            author.Command(
+    husk_cmd = generate_husk_command(parms)
+
+    timelimit = parms.husk_timelimit
+    tiles = parms.husk_tile
+    tilecount = parms.husk_tilecount1 * parms.husk_tilecount2
+
+    start, end, inc = get_frame_range(parms, node)
+    frame = start
+    while True:
+        if frame > end:
+            break
+
+        frame_tasks: list[author.Task] = []
+        if tiles:
+            frame_tasks = [
+                author.Task(title=f"Frame {frame}t{tile}, {node_name}")
+                for tile in range(tilecount)
+            ]
+        else:
+            frame_tasks = [author.Task(title=f"Frame {frame}, {node_name}")]
+
+        for tile, frame_task in enumerate(frame_tasks):
+            render_command = author.Command(
                 argv=[
                     "/bin/bash",
                     "-exc",
-                    f'trap "hserver -S $HOUDINI_LICENSE_SERVER" SIGQUIT && {cmd}',
+                    'trap "hserver -S $HOUDINI_LICENSE_SERVER" SIGQUIT && '
+                    + husk_cmd.format(fnum=frame, tnum=tile),
                 ],
                 retryrc=[
                     -11,  # Segmentation fault
@@ -103,9 +163,12 @@ def generate_tractor_task(node: hou.LopNode) -> author.Task:
                     135,  # Bus error
                     139,  # Segmentation fault
                 ],
-                maxrunsecs=3 * 60 * 60,
             )
-        )
-        task.addChild(subtask)
+            if timelimit:
+                render_command.maxrunsecs = timelimit
+            frame_task.addCommand(render_command)
+            task.addChild(frame_task)
+
+        frame += inc
 
     return task
