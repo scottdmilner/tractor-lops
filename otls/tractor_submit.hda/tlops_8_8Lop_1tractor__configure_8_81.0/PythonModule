@@ -81,7 +81,6 @@ def generate_husk_command(parms: ConfigParms) -> str:
         f"--purpose {parms.husk_purpose}",
         f"--complexity veryhigh",
         f"--verbose acet{parms.verbosity}",
-        parms.savetodirectory_directory + "/render.usd",
     ]
 
     p: Any
@@ -114,6 +113,8 @@ def generate_husk_command(parms: ConfigParms) -> str:
         cmd.append(f"--usd-trace {p}")
         if p := parms.husk_chromefile:
             cmd.append(f"--usd-chrome-file {p}")
+    
+    cmd.append(parms.savetodirectory_directory + "/render.usd")
 
     return " ".join(cmd)
 
