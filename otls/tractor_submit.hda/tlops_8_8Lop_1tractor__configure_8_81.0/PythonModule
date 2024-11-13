@@ -4,6 +4,7 @@ import hou
 
 import tractor.api.author as author
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -75,7 +76,7 @@ def generate_husk_command(parms: ConfigParms) -> str:
     cmd = [
         "husk",
         "--make-output-path",
-        f"--output {parms.savetodirectory_directory}/images/{{fnum:04}}.exr",
+        f"--output '{parms.savetodirectory_directory}/images/$F4.exr'",
         "--frame {fnum}",
         f"--renderer {parms.renderer}",
         f"--purpose {parms.husk_purpose}",
@@ -114,7 +115,7 @@ def generate_husk_command(parms: ConfigParms) -> str:
         if p := parms.husk_chromefile:
             cmd.append(f"--usd-chrome-file {p}")
     
-    cmd.append(parms.savetodirectory_directory + "/render.usd")
+    cmd.append(f"'{parms.savetodirectory_directory}/render.usd'")
 
     return " ".join(cmd)
 
@@ -127,6 +128,7 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
     parms.rop_lop = submit_input.path()
 
     node.node("usd_rop").parm("execute").pressButton()  # type: ignore[union-attr]
+    (Path(parms.savetodirectory_directory) / "images").mkdir(755, True, True)
 
     husk_cmd = generate_husk_command(parms)
 
