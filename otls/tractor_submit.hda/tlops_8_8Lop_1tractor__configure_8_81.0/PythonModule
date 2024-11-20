@@ -115,6 +115,7 @@ def generate_husk_command(parms: ConfigParms) -> str:
         if p := parms.husk_chromefile:
             cmd.append(f"--usd-chrome-file {p}")
     
+    cmd.append("--disable-dummy-raster-product")
     cmd.append(f"'{parms.savetodirectory_directory}/render.usd'")
 
     return " ".join(cmd)
