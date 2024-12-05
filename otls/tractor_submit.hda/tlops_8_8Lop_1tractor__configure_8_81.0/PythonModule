@@ -157,7 +157,7 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
                 argv=[
                     "/bin/bash",
                     "-exc",
-                    'trap "hserver -S $HOUDINI_LICENSE_SERVER" SIGQUIT && '
+                    'trap "test \$? -eq 3 && hserver -S $HOUDINI_LICENSE_SERVER && exit 3" EXIT && '
                     + husk_cmd.format(fnum=frame, tnum=tile),
                 ],
                 retryrc=[

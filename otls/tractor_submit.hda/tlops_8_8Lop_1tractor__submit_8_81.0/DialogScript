@@ -136,7 +136,7 @@
         name    "service"
         label   "Default Service Key"
         type    string
-        default { "Nintendo||Monster||Animation_Lab||Render_Farm" }
+        default { "EL9" }
         parmtag { "script_callback_language" "python" }
     }
     group {
