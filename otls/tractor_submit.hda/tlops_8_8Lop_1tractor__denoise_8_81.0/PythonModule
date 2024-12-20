@@ -1,0 +1,285 @@
+from __future__ import annotations
+
+import hou
+import json
+import re
+
+import tractor.api.author as author
+
+from dataclasses import asdict, dataclass, field
+from enum import Enum
+from pathlib import Path
+from pxr import Sdf, Usd, UsdRender
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import TypeVar
+
+    T = TypeVar("T", bound=type)
+
+
+_shared_module = hou.nodeType(
+    hou.lopNodeTypeCategory(), "tlops::shared_python"
+).hdaModule()
+ParmData = _shared_module.ParmData
+parmfield = _shared_module.parmfield
+
+
+class DenoiseParms(metaclass=ParmData):
+    service: str
+
+
+DENOISE_ROOT = "${RMANTREE}/lib/denoise/"
+
+
+class Topology(str, Enum):
+    SINGLEFRAME_SYM = DENOISE_ROOT + "full_w1_5s_sym_gen2.topo"
+    SINGLEFRAME_ASYM = DENOISE_ROOT + "full_w1_5s_asym_gen2.topo"
+    MULTIFRAME_SYM = DENOISE_ROOT + "full_w7_4sv2_sym_gen2.topo"
+    MULTIFRAME_ASYM = DENOISE_ROOT + "full_w7_4sv2_asym.topo"
+
+
+PARAM_MAP: dict[Topology, str] = {
+    Topology.SINGLEFRAME_SYM: DENOISE_ROOT + "20973-renderman.param",
+    Topology.SINGLEFRAME_ASYM: DENOISE_ROOT + "20973-renderman.param",
+    Topology.MULTIFRAME_SYM: DENOISE_ROOT + "20970-renderman.param",
+    Topology.MULTIFRAME_ASYM: DENOISE_ROOT + "20970-renderman.param",
+}
+
+
+class Overwrite(str, Enum):
+    FILE = "OverwriteFile"
+    CHANNELS = "OverwriteChannels"
+
+
+@dataclass
+class DenoiseAOV:
+    paths: list[str]
+    layers: list[str]
+
+
+class Filter(dict):
+    pass
+
+
+@dataclass
+class AOV:
+    layer: str
+    filename: str = "${InputFile}"
+
+
+@dataclass
+class OutAOV(AOV):
+    filters: list[Filter] = field(default=None)
+    filename: str = "${OutputFile}"
+
+
+@dataclass
+class Output:
+    read: AOV
+    write: OutAOV
+
+
+@dataclass
+class Pass:
+    name: str
+    input: AOV
+    input_variance: AOV
+    outputs: list[Output]
+
+
+@dataclass
+class _Settings:
+    albedo: AOV
+    albedo_variance: AOV
+    flow: AOV
+    normal: AOV
+    normal_variance: AOV
+    overwrite: Overwrite
+    sample_count: AOV
+    topology: Topology
+    frame_include: str = ""
+    frame_exclude: str = ""
+    parameters: str = field(init=False)
+
+
+@dataclass
+class Settings(_Settings):
+    albedo: AOV
+    albedo_variance: AOV
+    flow: AOV
+    frame_include: str
+    frame_exclude: str
+    normal: AOV
+    normal_variance: AOV
+    overwrite: str
+    sample_count: AOV
+    topology: Topology
+
+    @property
+    def parameters(self) -> str:
+        return PARAM_MAP[self.topology]
+
+
+@dataclass
+class DenoiseConfig:
+    settings: dict
+    passes: list[Pass]
+
+
+def generate_denoise_config() -> DenoiseConfig:
+    settings = Settings(
+        albedo=AOV("albedo"),
+        albedo_variance=AOV("albedo_mse"),
+        normal=AOV("normal"),
+        normal_variance=AOV("normal_mse"),
+        flow=AOV("Ci"),
+        frame_include="${Frame}",
+        overwrite=Overwrite.FILE,
+        sample_count=AOV("sampleCount"),
+        topology=Topology.MULTIFRAME_ASYM,
+    )
+    passes = [
+        Pass(
+            name="alpha",
+            input=AOV("a"),
+            input_variance=AOV("mse"),
+            outputs=[
+                Output(read=AOV("a"), write=OutAOV("a_dn")),
+            ],
+        ),
+        Pass(
+            name="diffuse",
+            input=AOV("diffuse"),
+            input_variance=AOV("diffuse_mse"),
+            outputs=[
+                Output(read=AOV("diffuse"), write=OutAOV("Ci_dn")),
+                Output(read=AOV("diffuse"), write=OutAOV("diffuse")),
+            ],
+        ),
+        Pass(
+            name="specular",
+            input=AOV("specular"),
+            input_variance=AOV("specular_mse"),
+            outputs=[
+                Output(read=AOV("specular"), write=OutAOV("Ci_dn")),
+                Output(read=AOV("specular"), write=OutAOV("specular")),
+            ],
+        ),
+    ]
+    return DenoiseConfig(settings=settings, passes=passes)
+
+
+def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> author.Task:
+    """
+    node: current node this function is called in
+    submit_input: the node at the bottom of this stream feeding into the Tractor Submit node
+    """
+    node_name = node.name()
+
+    input = node.input(0)
+    render_task = input.hdaModule().generate_tractor_task(input, submit_input)
+
+    denoise_task = author.Task(title=f"Denoise ({node_name})")
+
+    task = author.Task(title=node_name)
+    task.addChild(denoise_task)
+    task.addChild(render_task)
+
+    config = generate_denoise_config()
+    jd = job_directory(node)
+    print(config)
+
+    with open(jd / "denoise.json", "w") as cf:
+        cf_json = json.dumps(asdict(config))
+        cf_json.replace("_frame", "-frame")
+        cf.write(cf_json)
+
+    (jd / "denoised").mkdir(755, True, True)
+
+    parms = DenoiseParms(node)
+
+    fnum_re = re.compile("^Frame (\d+).*$")
+    findex = {int(fnum_re.match(t.title).group(1)): t for t in render_task.subtasks}
+
+    for fnum, frame_task in findex.items():
+        frame_denoise_task = author.Task(title=("Denoise " + frame_task.title))
+        frame_denoise_task.newCommand(
+            argv=[
+                "/bin/bash",
+                "-exc",
+                f"Frame={fnum} "
+                f"InputFile={jd / 'images/####.exr'} "
+                f"OutputFile={jd / 'denoised/####.exr'} "
+                f"denoise_batch --json {jd}/denoise.json",
+            ],
+            retryrc=[
+                -11,  # Segmentation fault
+                139,  # Segmentation fault
+            ],
+            service=parms.service,
+        )
+        for t in (findex.get(i, None) for i in range(fnum - 3, fnum + 4)):
+            if t is not None:
+                frame_denoise_task.addChild(author.Instance(title=t.title))
+
+        denoise_task.addChild(frame_denoise_task)
+
+    # print(render_task.asTcl())
+    # print(denoise_task.asTcl())
+    print(task.asTcl())
+
+    return task
+
+
+def job_directory(node: hou.LopNode) -> Path:
+    input = node.input(0)
+    return input.hdaModule().job_directory(input)
+
+
+def get_render_product_menu(node: hou.LopNode) -> list[str]:
+    menu: list[str] = [" ", " "]
+    stage: Usd.Stage = node.node("BASE_DENOISE_AOVS").stage()
+    vars_prim = stage.GetPrimAtPath("/Render/Products/Vars")
+    for prim in iter(Usd.PrimRange(vars_prim)):
+        if not prim.IsA(UsdRender.Var):
+            continue
+
+        # filter to get vars we'd want to denoise
+        var = UsdRender.Var(prim)
+        name = prim.GetName()
+        if (
+            (var.GetSourceTypeAttr().Get() != "lpe")
+            or (prim.GetAttribute("driver:parameters:aov:statistics"))
+            or name in ["albedo", "diffuse", "specular", "normal"]
+        ):
+            continue
+
+        menu += [name, name]
+
+    return menu
+
+
+def create_mse_aov(stage: Usd.Stage, vars_prim: Usd.Prim, aov_name: str, renderer: str):
+    """Given an AOV render var, create a matching MSE render var"""
+    aov_prim = vars_prim.GetChild(aov_name)
+
+    mse_aov_path = Sdf.Path(str(aov_prim.GetPath()) + "_mse")
+    mse_aov_prim = stage.DefinePrim(mse_aov_path, "RenderVar")
+
+    for attr in aov_prim.GetAttributes():
+        if not attr.IsAuthored():
+            continue
+        mse_aov_prim.CreateAttribute(attr.GetName(), attr.GetTypeName()).Set(attr.Get())
+
+    mse_aov_prim.GetAttribute("driver:parameters:aov:name").Set(aov_name + "_mse")
+    if renderer.startswith("HdPrman"):
+        mse_aov_prim.CreateAttribute(
+            "driver:parameters:aov:statistics", Sdf.ValueTypeNames.String
+        ).Set("mse")
+    elif renderer.startswith("BRAY_HdKarma"):
+        mse_aov_prim.CreateAttribute(
+            "driver:parameters:aov:karma:filter", Sdf.ValueTypeNames.String
+        ).Set('["stats",{"mode":"mse"}]')
+    else:
+        raise RuntimeError("Unsupported render engine!")

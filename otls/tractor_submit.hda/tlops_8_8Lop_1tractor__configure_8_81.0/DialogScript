@@ -175,6 +175,13 @@
         parmtag { "autoscope" "0000000000000000" }
         parmtag { "script_callback_language" "python" }
     }
+    parm {
+        name    "service"
+        label   "Default Service Key"
+        type    string
+        default { "EL9" }
+        parmtag { "script_callback_language" "python" }
+    }
     group {
         name    "_maintabs"
         label   "Overrides"

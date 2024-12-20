@@ -1,9 +1,9 @@
-# Dialog script for tlops::tractor_submit::1.0 automatically generated
+# Dialog script for tlops::tractor_denoise::1.0 automatically generated
 
 {
-    name	tlops::tractor_submit::1.0
+    name	tlops::tractor_denoise::1.0
     script	load_asset::1.0
-    label	"Tractor Submit"
+    label	"Tractor Denoise"
 
     help {
 	""
@@ -109,63 +109,33 @@
     inputlabel	98	"Input #98"
     inputlabel	99	"Input #99"
 
-    parm {
-        name    "send"
-        label   "Send To Tractor"
-        type    button
-        default { "0" }
-        parmtag { "script_callback" "hou.phm().sendToTractor(kwargs['node'])" }
-        parmtag { "script_callback_language" "python" }
+    multiparm {
+        name    "denoise_aovs"
+        label    "Denoise AOVs"
+
+        parm {
+            name    "denoise_aov#"
+            label   "AOV"
+            type    string
+            default { " " }
+            menu {
+                [ "if menu := hou.phm().get_render_product_menu(kwargs[\"node\"]):" ]
+                [ "    return menu" ]
+                [ "else:" ]
+                [ "    return [None, None]" ]
+                language python
+            }
+            parmtag { "autoscope" "0000000000000000" }
+            parmtag { "autoselect" "0000000000000000" }
+            parmtag { "script_callback_language" "python" }
+        }
     }
+
     parm {
-        name    "title"
-        label   "Job Title"
+        name    "service"
+        label   "Denoise Service Key"
         type    string
-        default { "" }
+        default { "EL9" }
         parmtag { "script_callback_language" "python" }
     }
-    parm {
-        name    "priority"
-        label   "Priority"
-        type    integer
-        default { "10" }
-        range   { 0! 50! }
-        parmtag { "script_callback_language" "python" }
-    }
-    group {
-        name    "advanced"
-        label   "Advanced"
-
-        parm {
-            name    "engine_url"
-            label   "Tractor Engine URL"
-            type    string
-            joinnext
-            default { "tractor-engine.cs.byu.edu" }
-            parmtag { "script_callback_language" "python" }
-        }
-        parm {
-            name    "engine_port"
-            label   "Port"
-            type    integer
-            default { "443" }
-            range   { 0 1000 }
-            parmtag { "script_callback_language" "python" }
-        }
-        parm {
-            name    "license_server"
-            label   "License Server"
-            type    string
-            default { "animlic.cs.byu.edu" }
-            parmtag { "script_callback_language" "python" }
-        }
-        parm {
-            name    "env_vars"
-            label   "Environment Vars"
-            type    string
-            default { "HOUDINI_PATH OCIO PATH PIXAR_LICENSE_FILE PXR_AR_DEFAULT_SEARCH_PATH PXR_PLUGINPATH_NAME RFHTREE RMAN_COLOR_CONFIG_DIR RMAN_PROCEDURALPATH RMANTREE" }
-            parmtag { "script_callback_language" "python" }
-        }
-    }
-
 }

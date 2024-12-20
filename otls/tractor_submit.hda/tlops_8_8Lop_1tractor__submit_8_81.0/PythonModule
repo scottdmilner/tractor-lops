@@ -19,15 +19,16 @@ ParmData = _shared_module.ParmData
 class SubmitParms(metaclass=ParmData):
     title: str
     priority: int
-    service: str
     engine_url: str
     engine_port: int
+    env_vars: str
+    license_server: str
 
 
 def ensure_valid_inputs(inputs: Iterable[hou.LopNode]) -> bool:
     for input in inputs:
         # if input is not a tractor_configure node, cancel
-        if not input.type().name().startswith("tlops::tractor_configure"):
+        if not input.type().name().startswith("tlops::tractor_"):
             hou.ui.displayMessage(
                 "Please ensure that all inputs to the Tractor Submit node are Tractor Configure nodes. "
                 f'Error on input node "{input.name()}"',
@@ -42,25 +43,11 @@ def configure_tractor_connection(parms: SubmitParms) -> None:
     author.setEngineClientParam(hostname=parms.engine_url, port=parms.engine_port)
 
 
-def generate_envkey() -> str:
+def generate_setenv(parms: SubmitParms) -> str:
     return " ".join(
         ["setenv"]
-        + [
-            f"{var}={os.getenv(var)}"
-            for var in (
-                "HOUDINI_PATH",
-                "OCIO",
-                "PATH",
-                "PIXAR_LICENSE_FILE",
-                "PXR_AR_DEFAULT_SEARCH_PATH",
-                "PXR_PLUGINPATH_NAME",
-                "RFHTREE",
-                "RMAN_COLOR_CONFIG_DIR",
-                "RMAN_PROCEDURALPATH",
-                "RMANTREE",
-            )
-        ]
-        + ["HOUDINI_LICENSE_SERVER=animlic.cs.byu.edu"]
+        + [f"{var}={os.getenv(var)}" for var in parms.env_vars.split(" ") if var]
+        + [f"HOUDINI_LICENSE_SERVER={parms.license_server}"]
     )
 
 
@@ -72,8 +59,7 @@ def sendToTractor(node: hou.LopNode) -> None:
     configure_tractor_connection(parms)
     job = author.Job()
     job.title = parms.title
-    job.envkey = [generate_envkey()]
-    job.service = parms.service
+    job.envkey = [generate_setenv(parms)]
     job.priority = parms.priority
 
     for input in node.inputs():

@@ -22,6 +22,7 @@ parmfield = _shared_module.parmfield
 
 class ConfigParms(metaclass=ParmData):
     rop_lop: str = parmfield(writable=True)
+    service: str
     trange: str
     f1: float
     f2: float
@@ -114,7 +115,7 @@ def generate_husk_command(parms: ConfigParms) -> str:
         cmd.append(f"--usd-trace {p}")
         if p := parms.husk_chromefile:
             cmd.append(f"--usd-chrome-file {p}")
-    
+
     cmd.append("--disable-dummy-raster-product")
     cmd.append(f"'{parms.savetodirectory_directory}/render.usd'")
 
@@ -122,6 +123,10 @@ def generate_husk_command(parms: ConfigParms) -> str:
 
 
 def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> author.Task:
+    """
+    node: current node this function is called in
+    submit_input: the node at the bottom of this stream feeding into the Tractor Submit node
+    """
     node_name = node.name()
     task = author.Task(title=node_name)
 
@@ -167,6 +172,7 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
                     135,  # Bus error
                     139,  # Segmentation fault
                 ],
+                service=parms.service,
             )
             if timelimit:
                 render_command.maxrunsecs = timelimit
@@ -176,3 +182,8 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
         frame += inc
 
     return task
+
+
+def job_directory(node: hou.LopNode) -> Path:
+    parms = ConfigParms(node)
+    return Path(parms.savetodirectory_directory)
