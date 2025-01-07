@@ -151,6 +151,7 @@
             default { "443" }
             range   { 0 1000 }
             parmtag { "script_callback_language" "python" }
+            parmtag { "sidefx::slider" "none" }
         }
         parm {
             name    "license_server"
