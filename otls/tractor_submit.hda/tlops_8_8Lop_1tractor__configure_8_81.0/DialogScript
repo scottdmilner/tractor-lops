@@ -295,6 +295,14 @@
             parmtag { "autoscope" "0000000000000000" }
             parmtag { "script_callback_language" "python" }
         }
+        parm {
+            name    "overscan"
+            label   "Overscan %"
+            type    float
+            default { "0" }
+            range   { 0 50 }
+            parmtag { "script_callback_language" "python" }
+        }
     }
 
     group {
