@@ -139,7 +139,7 @@
         type    toggle
         invisible
         nolabel
-        default { "0" }
+        default { [ "hou.pwd().parm(\"topology\").evalAsString().endswith(\"_ASYM\")" python ] }
         parmtag { "script_callback_language" "python" }
     }
     parm {
