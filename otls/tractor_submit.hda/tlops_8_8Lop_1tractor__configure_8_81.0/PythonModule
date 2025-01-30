@@ -40,10 +40,6 @@ class ConfigParms(metaclass=ParmData):
     husk_chromefile: str
     override_camera: str = parmfield(has_toggle=True)
     rendersettings: str = parmfield(has_toggle=True)
-    override_res: str
-    res_scale: int
-    res_user1: int
-    res_user2: int
     husk_instantshutter: int
     husk_prerender: str
     husk_preframe: str
@@ -81,7 +77,7 @@ def generate_husk_command(parms: ConfigParms) -> str:
         "--frame {fnum}",
         f"--renderer {parms.renderer}",
         f"--purpose {parms.husk_purpose}",
-        f"--complexity veryhigh",
+        "--complexity veryhigh",
         f"--verbose acet{parms.verbosity}",
     ]
 
@@ -92,13 +88,8 @@ def generate_husk_command(parms: ConfigParms) -> str:
         cmd.append(f"--camera {p}")
     if p := parms.rendersettings:
         cmd.append(f"--settings {p}")
-    if p := parms.override_res:
-        if p == "scale":
-            cmd.append(f"--res-scale {parms.res_scale}")
-        elif p == "specific":
-            cmd.append(f"--res {parms.res_user1} {parms.res_user2}")
     if parms.husk_instantshutter:
-        cmd.append(f"--disable-motionblur")
+        cmd.append("--disable-motionblur")
     if p := parms.husk_prerender:
         cmd.append(f"--prerender-script {p}")
     if p := parms.husk_preframe:

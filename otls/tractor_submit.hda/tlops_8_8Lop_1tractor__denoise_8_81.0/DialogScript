@@ -109,28 +109,46 @@
     inputlabel	98	"Input #98"
     inputlabel	99	"Input #99"
 
-    multiparm {
-        name    "denoise_aovs"
-        label    "Denoise AOVs"
-
-        parm {
-            name    "denoise_aov#"
-            label   "AOV"
-            type    string
-            default { " " }
-            menu {
-                [ "if menu := hou.phm().get_render_product_menu(kwargs[\"node\"]):" ]
-                [ "    return menu" ]
-                [ "else:" ]
-                [ "    return [None, None]" ]
-                language python
-            }
-            parmtag { "autoscope" "0000000000000000" }
-            parmtag { "autoselect" "0000000000000000" }
-            parmtag { "script_callback_language" "python" }
+    parm {
+        name    "topology"
+        label   "Mode"
+        type    string
+        joinnext
+        default { "MULTIFRAME_SYM" }
+        menu {
+            [ "if menu := hou.phm().get_denoise_topo_menu():" ]
+            [ "    return menu" ]
+            [ "else:" ]
+            [ "    return [None, None]" ]
+            language python
         }
+        parmtag { "script_callback_language" "python" }
     }
-
+    parm {
+        name    "asymmetry"
+        label   "Asymmetry"
+        type    float
+        default { "0" }
+        hidewhen "{ is_asym == 0 }"
+        range   { 0! 1 }
+        parmtag { "script_callback_language" "python" }
+    }
+    parm {
+        name    "is_asym"
+        label   "Label"
+        type    toggle
+        invisible
+        nolabel
+        default { "0" }
+        parmtag { "script_callback_language" "python" }
+    }
+    parm {
+        name    "cryptomatte"
+        label   "Generate Cryptomatte"
+        type    toggle
+        default { "0" }
+        parmtag { "script_callback_language" "python" }
+    }
     parm {
         name    "service"
         label   "Denoise Service Key"
@@ -138,4 +156,33 @@
         default { "EL9" }
         parmtag { "script_callback_language" "python" }
     }
+    groupcollapsible {
+        name    "folder0"
+        label   "Advanced"
+
+        parm {
+            name    "rmantree_override"
+            label   "RMANTREE Override"
+            type    string
+            default { "" }
+            parmtag { "script_callback_language" "python" }
+        }
+        parm {
+            name    "denoise_only"
+            label   "Denoise ONLY (no render)"
+            type    toggle
+            default { "0" }
+            parmtag { "script_callback_language" "python" }
+        }
+        parm {
+            name    "tiles"
+            label   "Tiling"
+            type    intvector2
+            size    2
+            default { "1" "1" }
+            range   { 1! 8 }
+            parmtag { "script_callback_language" "python" }
+        }
+    }
+
 }
