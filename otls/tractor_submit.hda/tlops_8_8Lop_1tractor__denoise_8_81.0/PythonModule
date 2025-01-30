@@ -28,6 +28,7 @@ parmfield = _shared_module.parmfield
 
 class DenoiseParms(metaclass=ParmData):
     asymmetry: float
+    cryptomatte: int
     denoise_only: int
     service: str
     rmantree_override: str
@@ -289,7 +290,6 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
 
     config = generate_denoise_config(parms, vars_iter)
     jd = job_directory(node)
-    print(config)
 
     with open(jd / JSON_CONFIG, "w") as cf:
         cf_json = json.dumps(asdict(config)).replace("frame_", "frame-")
@@ -318,7 +318,7 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
             frame_exclude = f"{max(0, fnum - 3)}-{fnum - 1},{fnum + 1}-{fnum + 3}"
         else:
             frame_include = fnum
-            frame_exclude = ""
+            frame_exclude = -1
 
         frame_denoise_task.newCommand(
             argv=[
@@ -341,8 +341,11 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
             ],
             service=parms.service,
         )
-        if config.is_crossframe and (not parms.denoise_only):
-            for t in (findex.get(i, None) for i in range(fnum - 3, fnum + 4)):
+        if not parms.denoise_only:
+            dep_frame_range = (
+                range(fnum - 3, fnum + 4) if config.is_crossframe else [fnum]
+            )
+            for t in (findex.get(i, None) for i in dep_frame_range):
                 if t is not None:
                     frame_denoise_task.addChild(author.Instance(title=t.title))
 
@@ -354,8 +357,11 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
                 "hoiiotool",
                 "--metamerge",
                 str(jd / DENOISED_DIR / f"{fnum}.exr"),
-                str(jd / CRYPTOMATTE_DIR / f"{fnum}.exr"),
-                "--chappend",
+                *(
+                    [str(jd / CRYPTOMATTE_DIR / f"{fnum}.exr"), "--chappend"]
+                    if parms.cryptomatte
+                    else []
+                ),
                 "-o",
                 str(jd / FINAL_DIR / f"{fnum}.exr"),
             ],
