@@ -30,6 +30,7 @@ class DenoiseParms(metaclass=ParmData):
     asymmetry: float
     cryptomatte: int
     denoise_only: int
+    keep_aux: int
     service: str
     rmantree_override: str
     tilesx: int
@@ -370,10 +371,11 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
         frame_cleanup_task.addChild(author.Instance(title=frame_denoise_task.title))
         cleanup_task.addChild(frame_cleanup_task)
 
-    cleanup_task.newCommand(
-        argv=["rm", "-rf", str(jd / AUX_DIR), str(jd / IMAGES_DIR)],
-        service=parms.service,
-    )
+    if not parms.keep_aux:
+        cleanup_task.newCommand(
+            argv=["rm", "-rf", str(jd / AUX_DIR), str(jd / IMAGES_DIR)],
+            service=parms.service,
+        )
 
     return task
 

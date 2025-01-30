@@ -168,6 +168,14 @@
             parmtag { "script_callback_language" "python" }
         }
         parm {
+            name    "keep_aux"
+            label   "Keep Auxilliary Files"
+            type    toggle
+            joinnext
+            default { "0" }
+            parmtag { "script_callback_language" "python" }
+        }
+        parm {
             name    "denoise_only"
             label   "Denoise ONLY (no render)"
             type    toggle
