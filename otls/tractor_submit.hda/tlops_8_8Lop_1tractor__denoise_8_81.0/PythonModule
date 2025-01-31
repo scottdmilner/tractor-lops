@@ -357,14 +357,14 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
             argv=[
                 "hoiiotool",
                 "--metamerge",
-                str(jd / DENOISED_DIR / f"{fnum}.exr"),
+                str(jd / DENOISED_DIR / f"{fnum:04}.exr"),
                 *(
-                    [str(jd / CRYPTOMATTE_DIR / f"{fnum}.exr"), "--chappend"]
+                    [str(jd / CRYPTOMATTE_DIR / f"{fnum:04}.exr"), "--chappend"]
                     if parms.cryptomatte
                     else []
                 ),
                 "-o",
-                str(jd / FINAL_DIR / f"{fnum}.exr"),
+                str(jd / FINAL_DIR / f"{fnum:04}.exr"),
             ],
             service=parms.service,
         )
