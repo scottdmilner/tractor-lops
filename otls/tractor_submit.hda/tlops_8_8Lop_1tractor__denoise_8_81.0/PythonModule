@@ -198,7 +198,7 @@ def generate_denoise_config(parms: DenoiseParms, vars: Iterable[str]) -> Denoise
             outputs[Passes.DIFFUSE].append(standard_output)
         elif var.startswith("diffuse_"):
             outputs[Passes.DIFFUSE].append(Output(AOV(var), OutAOV(var)))
-        elif var in ["normal", "P"]:
+        elif var in ["normal", "p"]:
             outputs[Passes.NORMAL].append(standard_output)
         elif var == "specular":
             outputs[Passes.SPECULAR].append(Output(AOV(var), OutAOV("RGB")))
@@ -284,7 +284,7 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
     stage: Usd.Stage = node.node("BASE_DENOISE_AOVS").stage()
     vars_prim = stage.GetPrimAtPath("/Render/Products/Vars")
     vars_iter = (
-        prim.GetName()
+        prim.GetAttribute("driver:parameters:aov:name").Get()
         for prim in iter(Usd.PrimRange(vars_prim))
         if prim.IsA(UsdRender.Var)
     )
