@@ -178,7 +178,7 @@ def generate_denoise_config(parms: DenoiseParms, vars: Iterable[str]) -> Denoise
     outputs: dict[str, list[Output]] = defaultdict(list)
     for var in vars:
         # don't pass through denoising AOVs
-        if var.endswith("mse") or var.endswith("_var") or var in ["Ci", "sampleCount"]:
+        if var.endswith("mse") or var.endswith("_var") or var in ["ci", "sampleCount"]:
             continue
 
         # Sort remaining AOVs into passes
