@@ -197,8 +197,8 @@ def generate_denoise_config(parms: DenoiseParms, vars: Iterable[str]) -> Denoise
             outputs[Passes.DIFFUSE].append(Output(AOV(var), OutAOV("RGB")))
             outputs[Passes.DIFFUSE].append(standard_output)
         elif var.startswith("diffuse_"):
-            outputs[Passes.DIFFUSE].append(Output(AOV(var), OutAOV(var)))
-        elif var in ["normal", "p"]:
+            outputs[Passes.DIFFUSE].append(standard_output)
+        elif var in ["normal", "__nworld", "__pworld"]:
             outputs[Passes.NORMAL].append(standard_output)
         elif var == "specular":
             outputs[Passes.SPECULAR].append(Output(AOV(var), OutAOV("RGB")))
