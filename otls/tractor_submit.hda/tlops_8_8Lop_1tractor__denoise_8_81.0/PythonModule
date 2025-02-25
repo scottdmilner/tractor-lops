@@ -342,6 +342,15 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
             ],
             service=parms.service,
         )
+        frame_denoise_task.newCommand(
+            argv=[
+                "test",
+                "-f",
+                f"{jd / DENOISED_DIR}/{fnum:04}.exr",
+            ],
+            service=parms.service,
+        )
+
         if not parms.denoise_only:
             dep_frame_range = (
                 range(fnum - 3, fnum + 4) if config.is_crossframe else [fnum]
