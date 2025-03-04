@@ -322,6 +322,10 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
             frame_exclude = -1
 
         frame_denoise_task.newCommand(
+            argv=["/bin/ls", str(jd / IMAGES_DIR)],
+            service=parms.service,
+        )
+        frame_denoise_task.newCommand(
             argv=[
                 "/bin/bash",
                 "-exc",
