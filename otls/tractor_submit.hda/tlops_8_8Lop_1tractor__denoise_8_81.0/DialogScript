@@ -156,6 +156,14 @@
         default { "EL9" }
         parmtag { "script_callback_language" "python" }
     }
+    parm {
+        name    "passthrough"
+        label   "Passthrough Render Vars"
+        type    string
+        default { "/Render/Products/Vars/__Nworld /Render/Products/Vars/__Pworld /Render/Products/Vars/__st /Render/Products/Vars/normal" }
+        parmtag { "script_callback_language" "python" }
+        parmtag { "sidefx::usdpathtype" "primlist" }
+    }
     groupcollapsible {
         name    "folder0"
         label   "Advanced"

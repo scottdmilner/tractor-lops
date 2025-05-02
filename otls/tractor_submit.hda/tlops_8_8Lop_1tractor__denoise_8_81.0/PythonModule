@@ -31,6 +31,7 @@ class DenoiseParms(metaclass=ParmData):
     cryptomatte: int
     denoise_only: int
     keep_aux: int
+    passthrough: str
     service: str
     rmantree_override: str
     tilesx: int
@@ -281,10 +282,21 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
     ]
 
     config = generate_denoise_config(parms, vars_list)
-    undenoised_vars = [
-        f"{var}.r,{var}.g,{var}.b" for var in vars_list if var in ["normal", "__nworld", "__pworld", "__st"]
-    ]
-    undenoised_cleanup_str = ",".join(undenoised_vars)
+
+    passthrough_aovs: list[str] = []
+    for var_path in parms.passthrough.split(" "):
+        prim = stage.GetPrimAtPath(var_path)
+        if not prim.IsValid():
+            continue
+        var = UsdRender.Var(prim)
+        datatype = var.GetDataTypeAttr().Get()
+        name = prim.GetAttribute("driver:parameters:aov:name").Get()
+        if '3' in datatype:
+            passthrough_aovs.append(f"{name}.r,{name}.g,{name}.b")
+        else:
+            passthrough_aovs.append(name)
+
+    passthrough_cleanup = ",".join(passthrough_aovs)
 
     jd = job_directory(node)
 
@@ -370,8 +382,8 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
                     else []
                 ),
                 *(
-                    [str(jd / IMAGES_DIR / f"{fnum:04}.exr"), "--ch", undenoised_cleanup_str, "--chappend"]
-                    if undenoised_vars
+                    [str(jd / IMAGES_DIR / f"{fnum:04}.exr"), "--ch", passthrough_cleanup, "--chappend"]
+                    if passthrough_cleanup
                     else []
                 ),
                 "-o",
