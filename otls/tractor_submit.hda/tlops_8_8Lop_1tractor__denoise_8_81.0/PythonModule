@@ -156,7 +156,6 @@ class Passes(str, Enum):
     ALPHA = "alpha"
     BEAUTY = "beauty"
     DIFFUSE = "diffuse"
-    NORMAL = "normal"
     SPECULAR = "specular"
 
 
@@ -198,8 +197,6 @@ def generate_denoise_config(parms: DenoiseParms, vars: Iterable[str]) -> Denoise
             outputs[Passes.DIFFUSE].append(standard_output)
         elif var.startswith("diffuse_"):
             outputs[Passes.DIFFUSE].append(standard_output)
-        elif var in ["normal", "__nworld", "__pworld", "__st"]:
-            outputs[Passes.NORMAL].append(standard_output)
         elif var == "specular":
             outputs[Passes.SPECULAR].append(Output(AOV(var), OutAOV("RGB")))
             outputs[Passes.SPECULAR].append(standard_output)
@@ -226,12 +223,6 @@ def generate_denoise_config(parms: DenoiseParms, vars: Iterable[str]) -> Denoise
             input=AOV("diffuse"),
             input_variance=AOV("diffuse_mse"),
             outputs=outputs[Passes.DIFFUSE],
-        ),
-        Pass(
-            Passes.NORMAL,
-            input=AOV("normal"),
-            input_variance=AOV("normal_mse"),
-            outputs=outputs[Passes.NORMAL],
         ),
         Pass(
             Passes.SPECULAR,
@@ -283,13 +274,18 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
 
     stage: Usd.Stage = node.node("BASE_DENOISE_AOVS").stage()
     vars_prim = stage.GetPrimAtPath("/Render/Products/Vars")
-    vars_iter = (
+    vars_list = [
         prim.GetAttribute("driver:parameters:aov:name").Get()
         for prim in iter(Usd.PrimRange(vars_prim))
         if prim.IsA(UsdRender.Var)
-    )
+    ]
 
-    config = generate_denoise_config(parms, vars_iter)
+    config = generate_denoise_config(parms, vars_list)
+    undenoised_vars = [
+        f"{var}.r,{var}.g,{var}.b" for var in vars_list if var in ["normal", "__nworld", "__pworld", "__st"]
+    ]
+    undenoised_cleanup_str = ",".join(undenoised_vars)
+
     jd = job_directory(node)
 
     with open(jd / JSON_CONFIG, "w") as cf:
@@ -362,6 +358,7 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
         denoise_task.addChild(frame_denoise_task)
 
         frame_cleanup_task = author.Task(title="Cleanup " + frame_task.title)
+
         frame_cleanup_task.newCommand(
             argv=[
                 "hoiiotool",
@@ -370,6 +367,11 @@ def generate_tractor_task(node: hou.LopNode, submit_input: hou.LopNode) -> autho
                 *(
                     [str(jd / CRYPTOMATTE_DIR / f"{fnum:04}.exr"), "--chappend"]
                     if parms.cryptomatte
+                    else []
+                ),
+                *(
+                    [str(jd / IMAGES_DIR / f"{fnum:04}.exr"), "--ch", undenoised_cleanup_str, "--chappend"]
+                    if undenoised_vars
                     else []
                 ),
                 "-o",
